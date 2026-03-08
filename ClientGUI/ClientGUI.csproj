@@ -1,7 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Description>CnCNet Client UI Library</Description>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FFmpeg.AutoGen" />
+    <PackageReference Include="FFmpeg.GPL" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ClientCore\ClientCore.csproj" />
   </ItemGroup>

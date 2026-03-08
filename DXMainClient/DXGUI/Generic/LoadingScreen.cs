@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using ClientCore;
@@ -51,6 +52,17 @@ namespace DTAClient.DXGUI.Generic
 
         private List<string> randomTextures;
 
+        // Set when a PreLoadingScreen is active; defers Finish() until it completes.
+        private bool _preMoviePlaying;
+
+        // Guards Finish() so it only runs once.
+        private bool _finished;
+
+        // Minimum seconds to display loading screen after pre-movie finishes.
+        private double _fakeDelaySeconds;
+        private bool _hadPreMovie;
+        private double _loadingShownTime;
+
         public override void Initialize()
         {
             ClientRectangle = new Rectangle(0, 0, 800, 600);
@@ -76,11 +88,30 @@ namespace DTAClient.DXGUI.Generic
                 Cursor.Visible = false;
                 visibleSpriteCursor = true;
             }
+
+            // Show PreLoadingScreen movie on top if its INI exists.
+            if (MovieScreenIniExists("PreLoadingScreen"))
+            {
+                _preMoviePlaying = true;
+                Visible = false;
+
+                var preScreen = new MovieScreen(WindowManager) { Name = "PreLoadingScreen" };
+                preScreen.Completed += (_, _) =>
+                {
+                    WindowManager.RemoveControl(preScreen);
+                    _preMoviePlaying = false;
+                    _hadPreMovie = true;
+                    _loadingShownTime = 0;
+                };
+                WindowManager.AddAndInitializeControl(preScreen);
+            }
         }
 
         protected override void GetINIAttributes(IniFile iniFile)
         {
             base.GetINIAttributes(iniFile);
+
+            _fakeDelaySeconds = iniFile.GetDoubleValue(Name, "FakeDelaySeconds", 0);
 
             randomTextures = iniFile.GetStringListValue(Name, "RandomBackgroundTextures", string.Empty).ToList();
 
@@ -104,13 +135,38 @@ namespace DTAClient.DXGUI.Generic
 
         private void Finish()
         {
-            ProgramConstants.GAME_VERSION = ClientConfiguration.Instance.ModMode ? 
+            _finished = true;
+
+            ProgramConstants.GAME_VERSION = ClientConfiguration.Instance.ModMode ?
                 "N/A" : Updater.GameVersion;
 
-            MainMenu mainMenu = serviceProvider.GetService<MainMenu>();
+            bool postExists = MovieScreenIniExists("PostLoadingScreen");
+            Logger.Log($"LoadingScreen.Finish: PostLoadingScreen INI exists = {postExists}");
 
+            if (postExists)
+            {
+                // Hide LoadingScreen behind the movie.
+                Visible = false;
+
+                var postScreen = new MovieScreen(WindowManager) { Name = "PostLoadingScreen" };
+                postScreen.Completed += (_, _) =>
+                {
+                    // Initialize MainMenu before removing the movie to avoid a black frame.
+                    ShowMainMenu();
+                    WindowManager.RemoveControl(postScreen);
+                };
+                WindowManager.AddAndInitializeControl(postScreen);
+            }
+            else
+            {
+                ShowMainMenu();
+            }
+        }
+
+        private void ShowMainMenu()
+        {
+            var mainMenu = serviceProvider.GetRequiredService<MainMenu>();
             WindowManager.AddAndInitializeControl(mainMenu);
-            mainMenu.PostInit();
 
             if (UserINISettings.Instance.AutomaticCnCNetLogin &&
                 NameValidator.IsNameValid(ProgramConstants.PLAYERNAME) == null)
@@ -132,11 +188,41 @@ namespace DTAClient.DXGUI.Generic
         {
             base.Update(gameTime);
 
-            if (updaterInitTask == null || updaterInitTask.Status == TaskStatus.RanToCompletion)
+            // Don't finish while the pre-movie is still playing.
+            if (_preMoviePlaying)
+                return;
+
+            if (_finished)
+                return;
+
+            // After pre-movie, ensure loading screen is visible and track display time.
+            if (_hadPreMovie)
+                _loadingShownTime += gameTime.ElapsedGameTime.TotalSeconds;
+
+            bool loadingDone = (updaterInitTask == null || updaterInitTask.Status == TaskStatus.RanToCompletion)
+                && mapLoadTask.Status == TaskStatus.RanToCompletion;
+
+            bool minTimeElapsed = !_hadPreMovie || _loadingShownTime >= _fakeDelaySeconds;
+
+            if (loadingDone && minTimeElapsed)
             {
-                if (mapLoadTask.Status == TaskStatus.RanToCompletion)
-                    Finish();
+                Finish();
+                return;
             }
+
+            // Still waiting — show loading screen if hidden (e.g., after pre-movie).
+            if (!Visible)
+                Visible = true;
+        }
+
+        /// <summary>
+        /// Checks whether a MovieScreen INI file exists in any resource path.
+        /// </summary>
+        private static bool MovieScreenIniExists(string screenName)
+        {
+            string fileName = $"{screenName}.ini";
+            return SafePath.GetFile(ProgramConstants.GetResourcePath(), fileName).Exists
+                || SafePath.GetFile(ProgramConstants.GetBaseResourcePath(), fileName).Exists;
         }
     }
 }

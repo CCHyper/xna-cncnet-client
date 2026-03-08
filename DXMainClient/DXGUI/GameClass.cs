@@ -23,6 +23,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Rampastring.XNAUI.XNAControls;
 using MainMenu = DTAClient.DXGUI.Generic.MainMenu;
+using FFmpeg.AutoGen;
 #if WINFORMS
 using System.Windows.Forms;
 #endif
@@ -51,6 +52,17 @@ namespace DTAClient.DXGUI
             }
 #endif
             content = new ContentManager(Services);
+
+            ConfigureFFmpeg();
+        }
+
+        static void ConfigureFFmpeg()
+        {
+            FFMpegLoader.Initialize();
+
+            // Probe � must not throw!
+            ffmpeg.av_log_set_level(ffmpeg.AV_LOG_INFO);
+            _ = ffmpeg.av_version_info();
         }
 
         private static GraphicsDeviceManager graphics;
@@ -312,7 +324,8 @@ namespace DTAClient.DXGUI
                             .AddTransientXnaControl<SettingCheckBox>()
                             .AddTransientXnaControl<SettingDropDown>()
                             .AddTransientXnaControl<FileSettingCheckBox>()
-                            .AddTransientXnaControl<FileSettingDropDown>();
+                            .AddTransientXnaControl<FileSettingDropDown>()
+                            .AddTransientXnaControl<FFMpegVideoPlayer>();
                     }
                 )
                 .Build();

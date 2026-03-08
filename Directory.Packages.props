@@ -10,6 +10,8 @@
   <ItemGroup>
     <PackageVersion Include="DiscordRichPresence" Version="1.2.1.24" />
     <PackageVersion Include="Facepunch.Steamworks" Version="2.4.1" />
+    <PackageVersion Include="FFmpeg.AutoGen" Version="7.1.1" />
+    <PackageVersion Include="FFmpeg.GPL" Version="20240730.1.0" />
     <PackageVersion Include="ImeSharp" Version="1.4.1" />
     <PackageVersion Include="lzo.net" Version="0.0.6" />
     <PackageVersion Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
